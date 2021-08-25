@@ -33,4 +33,5 @@ The database contains the following data:
 The reports display insight in to how the phone numbers are assigned.
 
 #### To-do / Bug fixes:
+* Change authentication method against Teams to use a Service Principle insted of a regular user (Currently auth. method with SP is broken)
 * 
