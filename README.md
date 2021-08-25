@@ -1,5 +1,5 @@
 # MSTeams-PhoneNumberMgmt 
-
+# Still work in progress
 A project to manage PSTN phone numbers using PowerShell in combination with a SQL DB and Power BI 
 
 ##### About: 
@@ -30,4 +30,7 @@ The database contains the following data:
 
 ##### Power BI report 
 
-The reports display insight in to how the phone numbers are assigned.  
+The reports display insight in to how the phone numbers are assigned.
+
+#### To-do / Bug fixes:
+* 
