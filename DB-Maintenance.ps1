@@ -26,63 +26,41 @@ $SQLServer = "seattle.database.windows.net"
 $DBName = "PSTNnumbers_DK"
 $DBTableName1 = "dbo.PhoneNumbers"
 
-[Array]$Users = Get-CsOnlineUser | Select-Object Alias, LineURI
+$Users = Get-CsOnlineUser | Select-Object Alias, LineURI
 
 $Query_UsersInDB = "select * from $DBTableName1 where UsedBy IS NOT NULL;"
 $Query_UsersInDB_CleanUp =  "UPDATE $DBTableName1 SET UsedBy='NULL'"
-$UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
+[array]$UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
-#Run through all users
-Foreach ($DBUser in $UsersInDB)
+$BROS = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
+
+#Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
+#Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
+
+Foreach($Bruger in $BROS.UsedBy)
 {
-    if($Users -match $DBUser.UsedBy)
-    {
-        #Write-Host "Found" $User.UsedBy
-    }
-    else{
-        Write-Host -ForegroundColor red "Not Found"
-    }
-    #Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
-    #Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
-
-}
-
-Function LookUpUser
-{
-    if($Teamsuser.Alias -notmatch $UsersInDB)
-    {
-        Write-Host "No match"
-    }
+    
+    if ($Users.Alias -contains $Bruger)
+    {write-host ""}
     else {
-        Write-Host "Match"
-    }
-}
-Function CheckForPhoneNumber
-{
-    if([string]::IsNullOrWhiteSpace($Teamsuser.LineURI))
-    {
-        Write-Host "User dont have phone number"
-    }
-    else {
-        Write-Host "User has phone number"
+        write-host "not found"
     }
 }
 
-Foreach ($Teamsuser in $Users)
+Foreach($Lars in $Users)
 {
-    if($Teamsuser.Alias -like "*$UsersInDB*") #### broken
+    if($BROS.UsedBy -contains $Lars.Alias)
     {
-        Write-Host -ForegroundColor Yellow $Teamsuser.Alias "Not found i DB"
-        if([string]::IsNullOrWhiteSpace($Teamsuser.LineURI))
+        $Hans
+    }
+    else 
+    {
+        if([string]::IsNullOrWhiteSpace($Lars.LineURI))
         {
-        Write-Host -ForegroundColor Red $Teamsuser.Alias "dont have phone number"
+            $Ulla
         }
         else {
-        Write-Host -ForegroundColor Green $Teamsuser.Alias "has phone number"
+            Write-Host "DB Update for" $Lars.Alias
         }
     }
-    else {
-        Write-Host -ForegroundColor Green $Teamsuser.Alias "Found in DB"
-    }
 }
-
