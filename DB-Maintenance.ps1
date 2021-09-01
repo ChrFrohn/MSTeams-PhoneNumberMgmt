@@ -30,37 +30,37 @@ $Users = Get-CsOnlineUser | Select-Object Alias, LineURI
 
 $Query_UsersInDB = "select * from $DBTableName1 where UsedBy IS NOT NULL;"
 $Query_UsersInDB_CleanUp =  "UPDATE $DBTableName1 SET UsedBy='NULL'"
-[array]$UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
+$UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
 $BROS = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
 #Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
 #Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
 
-Foreach($Bruger in $BROS.UsedBy)
+Foreach($User in $UsersInDB.UsedBy)
 {
     
-    if ($Users.Alias -contains $Bruger)
+    if ($Users.Alias -contains $User)
     {write-host ""}
     else {
         write-host "not found"
     }
 }
 
-Foreach($Lars in $Users)
+Foreach($User in $Users)
 {
-    if($BROS.UsedBy -contains $Lars.Alias)
+    if($UsersInDB.UsedBy -contains $User.Alias)
     {
         $Hans
     }
     else 
     {
-        if([string]::IsNullOrWhiteSpace($Lars.LineURI))
+        if([string]::IsNullOrWhiteSpace($User.LineURI))
         {
             $Ulla
         }
         else {
-            Write-Host "DB Update for" $Lars.Alias
+            Write-Host "DB Update for" $User.Alias
         }
     }
 }
