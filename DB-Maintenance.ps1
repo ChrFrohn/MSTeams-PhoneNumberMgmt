@@ -26,7 +26,7 @@ $SQLServer = "seattle.database.windows.net"
 $DBName = "PSTNnumbers_DK"
 $DBTableName1 = "dbo.PhoneNumbers"
 
-$Users = Get-CsOnlineUser | Select-Object Alias, LineURI
+$TeamsUsers = Get-CsOnlineUser | Select-Object Alias, LineURI
 
 $Query_UsersInDB = "select * from $DBTableName1 where UsedBy IS NOT NULL;"
 $Query_UsersInDB_CleanUp =  "UPDATE $DBTableName1 SET UsedBy='NULL'"
@@ -35,29 +35,60 @@ $UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessT
 $BROS = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
 #Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
-#Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
-
-Foreach($User in $UsersInDB.UsedBy)
-{
-    
-    if ($Users.Alias -contains $User)
-    {write-host ""}
-    else {
-        write-host "not found"
-    }
-}
-
-Foreach($User in $Users)
+Fucntion Lookup-Database
 {
     if($UsersInDB.UsedBy -contains $User.Alias)
     {
-        $Hans
+        #Nothing to do
     }
     else 
     {
         if([string]::IsNullOrWhiteSpace($User.LineURI))
         {
-            $Ulla
+            #Nothing to do
+        }
+        else {
+            Write-Host "DB Update for" $User.Alias
+        }
+    }
+}
+
+#Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
+Function Lookup-Teams
+{
+    if ($TeamsUsers.Alias -contains $User)
+    {#Nothing to do
+    }
+    else {
+        write-host "not found in Teams, but is in DB" $User
+    }
+}
+
+
+
+Foreach($User in $UsersInDB.UsedBy)
+{
+    
+    if ($TeamsUsers.Alias -contains $User)
+    {#Nothing to do
+    }
+    else {
+        write-host "not found in Teams, but is in DB" $User
+    }
+}
+
+
+Foreach($User in $TeamsUsers)
+{
+    if($UsersInDB.UsedBy -contains $User.Alias)
+    {
+        #Nothing to do
+    }
+    else 
+    {
+        if([string]::IsNullOrWhiteSpace($User.LineURI))
+        {
+            #Nothing to do
         }
         else {
             Write-Host "DB Update for" $User.Alias
