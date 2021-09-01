@@ -29,13 +29,11 @@ $DBTableName1 = "dbo.PhoneNumbers"
 $TeamsUsers = Get-CsOnlineUser | Select-Object Alias, LineURI
 
 $Query_UsersInDB = "select * from $DBTableName1 where UsedBy IS NOT NULL;"
-$Query_UsersInDB_CleanUp =  "UPDATE $DBTableName1 SET UsedBy='NULL'"
+
 $UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
-$BROS = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
-
 #Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
-Fucntion Lookup-Database
+Function Lookup-Database
 {
     if($UsersInDB.UsedBy -contains $User.Alias)
     {
@@ -49,6 +47,10 @@ Fucntion Lookup-Database
         }
         else {
             Write-Host "DB Update for" $User.Alias
+            $UserPhoneNumber = $User.LineURI #Number needs trimming to match DB
+            $UserNameInTeams = $User.Alias
+            $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy=$UserNameInTeams where PSTNnumber=$UserPhoneNumber"
+            #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
         }
     }
 }
@@ -60,38 +62,22 @@ Function Lookup-Teams
     {#Nothing to do
     }
     else {
-        write-host "not found in Teams, but is in DB" $User
+        write-host $User.Alias "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe"
+        $UserNameInDB = $User.Alias
+        $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby = $UserNameInDB"
+        #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose 
     }
 }
 
 
-
+#Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
 Foreach($User in $UsersInDB.UsedBy)
 {
-    
-    if ($TeamsUsers.Alias -contains $User)
-    {#Nothing to do
-    }
-    else {
-        write-host "not found in Teams, but is in DB" $User
-    }
+    Lookup-Teams
 }
 
-
+#Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
 Foreach($User in $TeamsUsers)
 {
-    if($UsersInDB.UsedBy -contains $User.Alias)
-    {
-        #Nothing to do
-    }
-    else 
-    {
-        if([string]::IsNullOrWhiteSpace($User.LineURI))
-        {
-            #Nothing to do
-        }
-        else {
-            Write-Host "DB Update for" $User.Alias
-        }
-    }
+    Lookup-Database
 }
