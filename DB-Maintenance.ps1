@@ -47,40 +47,41 @@ Function Lookup-Database
         }
         else {
             Write-Host "DB Update for" $User.Alias $UserPhoneNumber
-            $UserPhoneNumber = $User.LineURI.TrimStart('tel:+45') #Number needs trimming to match DB
+            $UserPhoneNumber = $User.LineURI.TrimStart('tel:+45')
             $UserNameInTeams = $User.Alias
             $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy='$UserNameInTeams' where PSTNnumber = '$UserPhoneNumber'"
             
-            Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
+            #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
         }
     }
 }
 
+Foreach($User in $TeamsUsers)
+{
+    Lookup-Database
+}
+
+#########################################################################################################################################################
+
 #Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
-#BROKEN
+
 Function Lookup-Teams
 {
-    if ($TeamsUsers.Alias -contains $LARS)
+    if ($TeamsUsers.Alias -contains $User)
     {#Nothing to do
     }
     else {
-        $UserNameInDB = $LARS.Alias
-        write-host $UserNameInDB "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe"
         
-        $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby = $UserNameInDB"
+        Write-Host $User "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe"
+        $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby = $User"
         #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose 
     }
 }
 
-#BROKEN
+
 #Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
 Foreach($User in $UsersInDB.UsedBy)
 {
     Lookup-Teams
 }
 
-#Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
-Foreach($User in $TeamsUsers)
-{
-    Lookup-Database
-}
