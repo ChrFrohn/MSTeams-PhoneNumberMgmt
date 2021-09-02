@@ -36,7 +36,7 @@ Function ReservedNumber
     Write-Host -ForegroundColor Cyan "Enabling user for PSTN in Teams with number" $ReservedNumber
 
     #Configure the user in Teams
-    Set-CsUser $TeamsCheck.WindowsEmailAddress   -OnPremLineURI tel:+$CountryCodeAndReservedNumber -EnterpriseVoiceEnabled $true -HostedVoiceMail $true -Verbose
+    Set-CsUser $TeamsCheck.WindowsEmailAddress -OnPremLineURI tel:+$CountryCodeAndReservedNumber -EnterpriseVoiceEnabled $true -HostedVoiceMail $true -Verbose
     
     #Update the DB (UsedBy)
     $Query_ReservedUpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$UsedBy' WHERE PSTNNumber=$ReservedNumber"

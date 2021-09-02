@@ -46,30 +46,33 @@ Function Lookup-Database
             #Nothing to do
         }
         else {
-            Write-Host "DB Update for" $User.Alias
-            $UserPhoneNumber = $User.LineURI #Number needs trimming to match DB
+            Write-Host "DB Update for" $User.Alias $UserPhoneNumber
+            $UserPhoneNumber = $User.LineURI.TrimStart('tel:+45') #Number needs trimming to match DB
             $UserNameInTeams = $User.Alias
-            $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy=$UserNameInTeams where PSTNnumber=$UserPhoneNumber"
-            #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
+            $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy='$UserNameInTeams' where PSTNnumber = '$UserPhoneNumber'"
+            
+            Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
         }
     }
 }
 
 #Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
+#BROKEN
 Function Lookup-Teams
 {
-    if ($TeamsUsers.Alias -contains $User)
+    if ($TeamsUsers.Alias -contains $LARS)
     {#Nothing to do
     }
     else {
-        write-host $User.Alias "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe"
-        $UserNameInDB = $User.Alias
+        $UserNameInDB = $LARS.Alias
+        write-host $UserNameInDB "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe"
+        
         $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby = $UserNameInDB"
         #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose 
     }
 }
 
-
+#BROKEN
 #Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
 Foreach($User in $UsersInDB.UsedBy)
 {
