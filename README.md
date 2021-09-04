@@ -2,12 +2,17 @@
 # Still work in progress
 A project to manage PSTN phone numbers using PowerShell in combination with a SQL DB and Power BI 
 
-### About: 
+## About: 
 
 This project is created with a dream to ease the management of phone numbers provided to an organization by an external provider (Telecommunications company's like T-Mobil or TDC). Phone numbers are often provided in an Excel spreadsheet and System administrator in charge needs to assign the number “by hand” and remember to update the spreadsheet. 
 
 This project aims to ease that pain by having the phone numbers in a database and Power BI report to display insight in to how the numbers are used and then a couple of PowerShell scripts to assign phone numbers and then a PowerShell script to “clean up” the database. 
   
+### Installation / Configuration
+
+- See blog post: URL
+
+---------------------------------------------------- -------------------------- -------------------------- --------------------------  
 
 ### PowerShell script - Assign Phone number: 
 
