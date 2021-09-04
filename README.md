@@ -8,9 +8,17 @@ This project is created with a dream to ease the management of phone numbers pro
 
 This project aims to ease that pain by having the phone numbers in a database and Power BI report to display insight in to how the numbers are used and then a couple of PowerShell scripts to assign phone numbers and then a PowerShell script to “clean up” the database. 
   
-### Installation / Configuration
+### Installation / Configuration - Quick and dirty
 
-- See blog post: URL
+- Create a Azure SQL manage instance
+- Create a table using the SQL query - CreateTables.sql found in this repo
+- Import your number series and definde region code (+45 or +31 fx.)
+- Create a Azure App reg and assig SQL write permission to it using SQL query lauange on the SQL manage instance
+- Then add the app reg information to the PowerShell scripts
+
+### Installation / Configuration - Detailed
+
+- coming soon
 
 ---------------------------------------------------- -------------------------- -------------------------- --------------------------  
 
