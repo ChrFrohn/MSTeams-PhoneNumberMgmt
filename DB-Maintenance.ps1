@@ -16,7 +16,6 @@ $RequestToken = Invoke-RestMethod -Method POST `
            -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
            -ContentType "application/x-www-form-urlencoded"
 $AccessToken = $RequestToken.access_token
-        
        
 #Connect to Teams
 Connect-MicrosoftTeams #When this is fixed as SP change it
@@ -29,10 +28,9 @@ $DBTableName1 = "dbo.PhoneNumbers"
 $TeamsUsers = Get-CsOnlineUser | Select-Object Alias, LineURI
 
 $Query_UsersInDB = "select * from $DBTableName1 where UsedBy IS NOT NULL;"
-
 $UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
-#Kig efter om brugeren er i DB, men ikke Teams - Ryd derefter op i DB
+#Kig efter om en bruger er i Teams, men ikke er i DB - Hvis brugeren er i Teams, men ikke i DB. Så opdater DB med oplysinger
 Function Lookup-Database
 {
     if($UsersInDB.UsedBy -contains $User.Alias)
@@ -47,12 +45,12 @@ Function Lookup-Database
         }
         else {
             
-            $UserPhoneNumber = $User.LineURI.TrimStart('tel:+45')
+            $UserPhoneNumber = $User.LineURI.TrimStart('TEL:+45')
             $UserNameInTeams = $User.Alias
             Write-Host "DB Update for" $User.Alias $UserPhoneNumber
-            $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy='$UserNameInTeams' where PSTNnumber = '$UserPhoneNumber'"
-            
-            #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
+            $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy='$UserNameInTeams' where PSTNnumber ='$UserPhoneNumber'"
+
+            Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
         }
     }
 }
@@ -64,8 +62,7 @@ Foreach($User in $TeamsUsers)
 
 #########################################################################################################################################################
 
-#Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
-
+#Kig efter om brugeren er i DB, men ikke i Teams. Hvis bruger ikke findes i Teams, men er i DB, så frigiv nummer i DB:
 Function Lookup-Teams
 {
     if ($TeamsUsers.Alias -contains $User)
@@ -73,9 +70,9 @@ Function Lookup-Teams
     }
     else {
         
-        Write-Host $User $User.PSTNnumber "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe" 
-        $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby = $User"
-        #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose 
+        Write-Host $User "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe" 
+        $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby ='$User'"
+        Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose 
     }
 }
 
