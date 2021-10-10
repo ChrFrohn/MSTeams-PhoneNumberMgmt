@@ -1,15 +1,15 @@
-#Moduels to be used:
-Import-Module SQLServer -Verbose #DB Writer permissions
-Import-Module MicrosoftTeams -Verbose #Teams administrator #https://docs.microsoft.com/en-us/powershell/module/teams/connect-microsoftteams?view=teams-ps#parameters #Need to conenct as Service Princs
+#Loggin
+$Date = Get-Date -Format "dd-MM-yyyy"
+Start-Transcript -Path .\Logs\DB\$Date.log -Verbose
 
-#Reference
-# https://docs.microsoft.com/en-us/powershell/module/sqlserver/invoke-sqlcmd?view=sqlserver-ps&source=docs#example-13--connect-to-azure-sql-database--or-managed-instance--using-a-managed-identity
-# https://docs.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal-tutorial#assign-an-identity-to-the-azure-sql-logical-server
-#
+#Moduels to be used:
+Import-Module SQLServer 
+Import-Module MicrosoftTeams
+
 #Auth. using Service Principle with Secret against the SQL DB in Azure and Teams
-$ClientID = "e1dd41c9-1d58-4e88-a7b4-9e9aa88fba58" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
-$TenantID = "b6c54b6e-3286-496c-a554-2a43795873ff" # "enter the tenant ID of the Service Principal"
-$ClientSecret = "v_0Wa0~.4Q-ik.mNE5XANZD8L7GQ48.-AI" # "enter the secret associated with the Service Principal"
+$ClientID = "" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
+$TenantID = "" # "enter the tenant ID of the Service Principal"
+$ClientSecret = "" # "enter the secret associated with the Service Principal"
 
 $RequestToken = Invoke-RestMethod -Method POST `
            -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
@@ -18,19 +18,19 @@ $RequestToken = Invoke-RestMethod -Method POST `
 $AccessToken = $RequestToken.access_token
        
 #Connect to Teams
-Connect-MicrosoftTeams #When this is fixed as SP change it
+Connect-MicrosoftTeams
 
 #Azure DB info
-$SQLServer = "seattle.database.windows.net"
-$DBName = "PSTNnumbers_DK"
-$DBTableName1 = "dbo.PhoneNumbers"
+$SQLServer = ""
+$DBName = ""
+$DBTableName1 = ""
 
 $TeamsUsers = Get-CsOnlineUser | Select-Object Alias, LineURI
 
 $Query_UsersInDB = "select * from $DBTableName1 where UsedBy IS NOT NULL;"
 $UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
-#Kig efter om en bruger er i Teams, men ikke er i DB - Hvis brugeren er i Teams, men ikke i DB. Så opdater DB med oplysinger
+#Check if a user is in Teams but not in DB - If the user is in Teams but not in DB. Then update DB with information 
 Function Lookup-Database
 {
     if($UsersInDB.UsedBy -contains $User.Alias)
@@ -57,12 +57,12 @@ Function Lookup-Database
 
 Foreach($User in $TeamsUsers)
 {
-    Lookup-Database
+    Lookup-Database #This is a function
 }
 
 #########################################################################################################################################################
 
-#Kig efter om brugeren er i DB, men ikke i Teams. Hvis bruger ikke findes i Teams, men er i DB, så frigiv nummer i DB:
+#Check if the user is in DB, but not in Teams. If user is not found in Teams but is in DB, release number in DB: 
 Function Lookup-Teams
 {
     if ($TeamsUsers.Alias -contains $User)
@@ -77,10 +77,9 @@ Function Lookup-Teams
 }
 
 
-#Kig efter om brugeren er i Teams, men ikke i DB og opdatere derefter DB
 Foreach($User in $UsersInDB.UsedBy)
 {
-    Lookup-Teams
+    Lookup-Teams #This is a function
 
 }
 
