@@ -46,9 +46,10 @@ Function Lookup-Database
             #Nothing to do
         }
         else {
-            Write-Host "DB Update for" $User.Alias $UserPhoneNumber
+            
             $UserPhoneNumber = $User.LineURI.TrimStart('tel:+45')
             $UserNameInTeams = $User.Alias
+            Write-Host "DB Update for" $User.Alias $UserPhoneNumber
             $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy='$UserNameInTeams' where PSTNnumber = '$UserPhoneNumber'"
             
             #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
@@ -72,7 +73,7 @@ Function Lookup-Teams
     }
     else {
         
-        Write-Host $User "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe"
+        Write-Host $User $User.PSTNnumber "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe" 
         $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby = $User"
         #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose 
     }
@@ -83,5 +84,6 @@ Function Lookup-Teams
 Foreach($User in $UsersInDB.UsedBy)
 {
     Lookup-Teams
+
 }
 
