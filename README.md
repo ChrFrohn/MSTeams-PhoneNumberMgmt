@@ -53,3 +53,4 @@ The reports display insight in to how the phone numbers are assigned.
 * Better error handling
 * Maybe URL to XML file for InterpretedUserType
 * Update Active Directory OfficePhone attribute with assigned phone number
+* Maybe a XML file that contains DB info + auth, AD info + Auth
