@@ -51,7 +51,7 @@ Function EnableTeamsUser #This funcation cotains the actions that will enable th
     Write-Host -ForegroundColor Cyan $UserInfo.SamAccountName "Enabling user for PSTN in Teams" $Number #Skal omskrives
     
     #Configuring the user in Teams
-    #Set-CsUser -Identity $TeamsCheck.WindowsEmailAddress -OnPremLineURI tel:$CountryCodeAndNumber -EnterpriseVoiceEnabled $true -HostedVoiceMail $true -Verbose
+    #Set-CsUser -Identity $TeamsCheck.WindowsEmailAddress -OnPremLineURI tel:+$CountryCodeAndNumber -EnterpriseVoiceEnabled $true -HostedVoiceMail $true -Verbose
     
     #Updating the DB
     $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$UsedBy' WHERE PSTNNumber=$Number"
