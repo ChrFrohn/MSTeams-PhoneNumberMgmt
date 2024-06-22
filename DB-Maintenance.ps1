@@ -1,7 +1,3 @@
-#Loggin
-$Date = Get-Date -Format "dd-MM-yyyy"
-Start-Transcript -Path .\Logs\DB\$Date.log -Verbose
-
 #Moduels to be used:
 Import-Module SQLServer 
 Import-Module MicrosoftTeams
@@ -16,70 +12,85 @@ $RequestToken = Invoke-RestMethod -Method POST `
            -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
            -ContentType "application/x-www-form-urlencoded"
 $AccessToken = $RequestToken.access_token
-       
-#Connect to Teams
-Connect-MicrosoftTeams
 
-#Azure DB info
+# Azure DB info
 $SQLServer = ""
 $DBName = ""
 $DBTableName1 = ""
+       
+#Connect to Teams
+$RequestToken = Invoke-RestMethod -Method POST `
+           -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
+           -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
+           -ContentType "application/x-www-form-urlencoded"
+$AccessToken = $RequestToken.access_token
 
+$graphtokenBody = @{   
+    Grant_Type    = "client_credentials"   
+    Scope         = "https://graph.microsoft.com/.default"   
+    Client_Id     = $ClientID 
+    Client_Secret = $ClientSecret   
+ }  
+ 
+$graphToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $graphtokenBody | Select-Object -ExpandProperty Access_Token 
+ 
+$teamstokenBody = @{   
+    Grant_Type    = "client_credentials"   
+    Scope         = "48ac35b8-9aa8-4d74-927d-1f4a14a0b239/.default"   
+    Client_Id     = $ClientID  
+    Client_Secret = $ClientSecret 
+ } 
+ 
+$teamsToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $teamstokenBody | Select-Object -ExpandProperty Access_Token 
+Connect-MicrosoftTeams -AccessTokens @("$graphToken", "$teamsToken")
+
+
+
+# Retrieve Teams users and DB users
 $TeamsUsers = Get-CsOnlineUser | Select-Object Alias, LineURI
-
-$Query_UsersInDB = "select * from $DBTableName1 where UsedBy IS NOT NULL;"
+$Query_UsersInDB = "SELECT * FROM $DBTableName1 WHERE UsedBy IS NOT NULL;"
 $UsersInDB = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB -Verbose
 
-#Check if a user is in Teams but not in DB - If the user is in Teams but not in DB. Then update DB with information 
-Function Lookup-Database
-{
-    if($UsersInDB.UsedBy -contains $User.Alias)
-    {
-        #Nothing to do
-    }
-    else 
-    {
-        if([string]::IsNullOrWhiteSpace($User.LineURI))
-        {
-            #Nothing to do
-        }
-        else {
-            
-            $UserPhoneNumber = $User.LineURI.TrimStart('TEL:+45')
-            $UserNameInTeams = $User.Alias
-            Write-Host "DB Update for" $User.Alias $UserPhoneNumber
-            $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy='$UserNameInTeams' where PSTNnumber ='$UserPhoneNumber'"
+# Function to update DB with Teams user information if not already present
+function Update-DatabaseWithTeamsUserInfo {
+    param (
+        [Parameter(Mandatory = $true)]
+        $User
+    )
 
-            Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose 
-        }
+    $userInDB = $UsersInDB | Where-Object { $_.UsedBy -eq $User.Alias }
+
+    if (-not $userInDB -and -not [string]::IsNullOrWhiteSpace($User.LineURI)) {
+        $UserPhoneNumber = $User.LineURI.TrimStart('TEL:+45')
+        $UserNameInTeams = $User.Alias
+        Write-Host "DB Update for $UserNameInTeams $UserPhoneNumber"
+        $Query_UsersInDB_Add = "UPDATE $DBTableName1 SET UsedBy='$UserNameInTeams' WHERE PSTNnumber ='$UserPhoneNumber'"
+        Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_Add -Verbose
     }
 }
 
-Foreach($User in $TeamsUsers)
-{
-    Lookup-Database #This is a function
-}
+# Function to release number in DB if user not found in Teams
+function Release-DBNumberForNonTeamsUser {
+    param (
+        [Parameter(Mandatory = $true)]
+        $DBUser
+    )
 
-#########################################################################################################################################################
+    $userInTeams = $TeamsUsers | Where-Object { $_.Alias -eq $DBUser }
 
-#Check if the user is in DB, but not in Teams. If user is not found in Teams but is in DB, release number in DB: 
-Function Lookup-Teams
-{
-    if ($TeamsUsers.Alias -contains $User)
-    {#Nothing to do
-    }
-    else {
-        
-        Write-Host $User "Is not found in Microsoft Teams, user will be remove from the DB and number will be come avalibe" 
-        $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy='NULL' where Usedby ='$User'"
-        Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose 
+    if (-not $userInTeams) {
+        Write-Host "$DBUser is not found in Microsoft Teams, user will be removed from the DB and number will become available"
+        $Query_UsersInDB_CleanUp = "UPDATE $DBTableName1 SET UsedBy=NULL WHERE UsedBy ='$DBUser'"
+        Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UsersInDB_CleanUp -Verbose
     }
 }
 
-
-Foreach($User in $UsersInDB.UsedBy)
-{
-    Lookup-Teams #This is a function
-
+# Update DB with Teams users info
+foreach ($User in $TeamsUsers) {
+    Update-DatabaseWithTeamsUserInfo -User $User
 }
 
+# Release numbers for users not in Teams
+foreach ($DBUser in $UsersInDB.UsedBy) {
+    Release-DBNumberForNonTeamsUser -DBUser $DBUser
+}
