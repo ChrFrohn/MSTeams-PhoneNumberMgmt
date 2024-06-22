@@ -1,244 +1,155 @@
-#Loggin
-$Date = Get-Date -Format "dd-MM-yyyy"
-Start-Transcript -Path .\Logs\Teams\$Date.log -Verbose
-
-
-#Moduels to be used:
-Import-Module ActiveDirectory
-Import-Module SQLServer #DB Writer permissions
-Import-Module MicrosoftTeams #Teams administrator 
+$Objectid = ""
 
 #Auth. using Service Principle with Secret against the SQL DB in Azure and Teams
 $ClientID = "" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
 $TenantID = "" # "enter the tenant ID of the Service Principal"
 $ClientSecret = "" # "enter the secret associated with the Service Principal"
 
-$RequestToken = Invoke-RestMethod -Method POST `
+# SQL Auth.
+$SQLRequestToken = Invoke-RestMethod -Method POST `
            -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
            -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
            -ContentType "application/x-www-form-urlencoded"
-$AccessToken = $RequestToken.access_token
-        
-#Connect to Microsoft Teams
-Connect-MicrosoftTeams
+$SQLAccessToken = $SQLRequestToken.access_token
 
-#Azure DB info
+# SQL server info
 $SQLServer = ""
 $DBName = ""
 $DBTableName1 = ""
 
-
-
-#Functions:
-Function ReservedNumber
-{
-    #Combine Country code and PhoneNumber
-
-    Write-Host -ForegroundColor Cyan $UserInfo.SamAccountName "Enabling user for PSTN in Teams with number" $ReservedNumber #Skal omskrives
-
-    #Configure the user in Teams
-    #Set-CsUser $TeamsCheck.WindowsEmailAddress -OnPremLineURI tel:+$CountryCodeAndReservedNumber -EnterpriseVoiceEnabled $true -HostedVoiceMail $true -Verbose
-    
-    #Update the DB (UsedBy)
-    $Query_ReservedUpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$UsedBy' WHERE PSTNNumber=$ReservedNumber"
-    #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_ReservedUpdateNumber -Verbose
-
+# Teams Auth.
+$tokenRequestBody = @{   
+    Grant_Type    = "client_credentials"   
+    Client_Id     = $ClientID 
+    Client_Secret = $ClientSecret   
 }
 
-Function EnableTeamsUser #This funcation cotains the actions that will enable the user in Teams, update the nr. in AD & Update the DB with info om who uses what number
-{
+# Get Graph Token
+$tokenRequestBody.Scope = "https://graph.microsoft.com/.default"
+$graphToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $tokenRequestBody | Select-Object -ExpandProperty Access_Token
 
-    Write-Host -ForegroundColor Cyan $UserInfo.SamAccountName "Enabling user for PSTN in Teams" $Number #Skal omskrives
-    
-    #Configuring the user in Teams
-    #Set-CsUser -Identity $TeamsCheck.WindowsEmailAddress -OnPremLineURI tel:+$CountryCodeAndNumber -EnterpriseVoiceEnabled $true -HostedVoiceMail $true -Verbose
-    
-    #Updating the DB
-    $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$UsedBy' WHERE PSTNNumber=$Number"
-    #Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_UpdateNumber -Verbose 
-    
-}
+# Get Teams Token
+$tokenRequestBody.Scope = "48ac35b8-9aa8-4d74-927d-1f4a14a0b239/.default"
+$teamsToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $tokenRequestBody | Select-Object -ExpandProperty Access_Token
 
-Function IS-OnPremLineURIManuallySet
-{
-    #Is OnPremLineURIManuallySet set to 'false'
-    #False is the disred value
-    if($TeamsCheck.OnPremLineURIManuallySet -eq $false)
-        {
-            #If OnPremLineURIManuallySet is set to false then the user is ready to be enabled, if other contions are meet
-            Write-Host -ForegroundColor Green "OnPremLineURIManuallySet is OK"
-           
-        }
-        else
-        {
-            #If OnPremLineURIManuallySet is set to True, then it could endicate that the user might allready have a PSTN number and is enabled for Teams
-            Write-Host -ForegroundColor Red "OnPremLineURIManually has the following value:" $TeamsCheck.OnPremLineURIManuallySet
-            Break
-        }
-}
+# Connect to Microsoft Teams
+Connect-MicrosoftTeams -AccessTokens @($graphToken, $teamsToken) | Out-Null
 
-Function IS-OnPremLineUriSet
-{
-         #Is OnPremLineUriSet set to 'null'
-         #NULL is the disred value
-         if([string]::IsNullOrWhiteSpace($TeamsCheck.OnPremLineURI))
-            {
-                #If OnPremLineURI holds no value then the user is ready to be enabled
-                Write-Host -ForegroundColor Green "OnPremLineURI is OK"
-              
-            }
-            else
-            {
-                #If OnPremLineURI holds a value (fx +4512345678) then that might need to be cleared
-                Write-Host -ForegroundColor Red "OnPremLineURI has the following value:" $TeamsCheck.OnPremLineURI
-                Break
-            }
-}
+# GitHub Auth
+$RepoOwner = "ChrFrohn" # Your GitHub username
+$Repo = "MSTeams-PhoneNumberMgmt" # The name of the Github repository
+$File_path = "InterpretedUserType.xml" # The path to the file in the repository
+$Url = "https://api.github.com/repos/$RepoOwner/$Repo/contents/$File_path" # GitHub API URL
 
-Function IS-LineUriSet
-{         
-    #Is LineUriSet set to 'null'
-    #NULL is the disred value
-          If([string]::IsNullOrWhiteSpace($TeamsCheck.LineURI))
-                {
-                    #If LineURI holds no value then the user is ready to be enabled
-                    Write-Host -ForegroundColor Green "LineURI is OK"
-                }
-                Else
-                {
-                    #If LineURI holds a value (fx +4512345678) then that might need to be cleared
-                    Write-Host -ForegroundColor Red "LineURI has the following value:" $TeamsCheck.LineURI
-                    Break
-                }
+# Send the API request
+$Response = Invoke-WebRequest -Uri $url 
+$Content = $Response.Content | ConvertFrom-Json
+$DecodedContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($content.content))
 
-}
 
-Function IS-RegistrarPoolSet
-{
-    #User needs to be in a RegistrarPool
-    #Any pool with name *infra.lync.com at the end is the disered value
-        if($TeamsCheck.RegistrarPool -ne $null)
-        {
-            Write-Host -ForegroundColor Green "RegistrarPool is OK"
-        }
-        Else
-        {
-            Write-Host -ForegroundColor Red "RegistrarPool has the following value:" $TeamsCheck.RegistrarPool
-            Break
-        }
+#XML file containing InterpretedUserType to lookup for actions
+[xml]$XML = $DecodedContent
 
-}
+# Get user infomation from Microsoft Teams (since we need the user to be there)
+$User = Get-CsOnlineUser -Identity $Objectid | Select-Object UserPrincipalName, OnPremLineURI, LineURI, RegistrarPool, TeamsUpgradeEffectiveMode, InterpretedUserType, MailNickName, Department
 
-Function IS-CoexistenceMode
-{
-    #If users Coexistence Mode -eq TeamsOnly then go
-    If($TeamsCheck.TeamsUpgradeEffectiveMode -eq 'TeamsOnly')
-    {
-        Write-Host -ForegroundColor Green "Users CoexistenceMode is OK (TeamsOnly)"
-    }
-    elseif($TeamsCheck.TeamsUpgradeEffectiveMode -eq 'Island Mode')
-    {
-        Write-Host -ForegroundColor Green "Users CoexistenceMode is OK (Island)"
-    }
-    Else
-    {
-        Write-host -ForegroundColor Red "User is not in right mode:" $TeamsCheck.TeamsUpgradeEffectiveMode
-    }
-}
-
-#Users to Process
-$OUS = ""
-$ADUsers = Foreach($OU in $OUS) {Get-ADUser -SearchBase $OU -Filter *}
-
-Foreach ($User in $ADUsers)
-{
-    Try 
-    {
-        #Processing user infomation
-        $TeamsCheck = Get-CsOnlineUser $User.UserPrincipalName
-        If(([string]::IsNullOrEmpty($TeamsCheck.LineURI)))
-        {
-            Write-Host -ForegroundColor Cyan $TeamsCheck.DisplayName ($TeamsCheck.WindowsEmailAddress) "User found in AD - Getting ready to process user:" $UserInfo.SamAccountName
-
-            #UserInfo
-        $UsedBy = $TeamsCheck.Alias.ToUpper()
-        $UserDepartment = $TeamsCheck.Department
-      
-    #SQL Querys:
-    $Query_AvailableNumbers = "select * from $DBTableName1 where UsedBy IS NULL and ReservedFor IS NULL;"
-    $Query_ResverdNumbers = "select * from $DBTableName1 where UsedBy IS NULL and ReservedFor='$UserDepartment';" #Needs varification
-
-    #Get resvered numbers pr. department
-    $ResveredNumbers = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_ResverdNumbers -Verbose
-    #Select the first avaible reserved phone number
-    $FirstAvailableReservedNumber = $ResveredNumbers | Select-Object -First 1
-
-    #First query to get availble numbers
-    $AvailableNumbers = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $AccessToken -Query $Query_AvailableNumbers -Verbose
-    #Select the first availble phone number
-    $FirstAvailableNumber = $AvailableNumbers | Select-Object -First 1
-
-    $CountryCode2 = $FirstAvailableNumber.CountryCode   
-    $Number = $FirstAvailableNumber.PSTNnumber
-    $CountryCodeAndNumber = "$Countrycode2" + "$Number"
-
-    $CountryCode = $FirstAvailableReservedNumber.CountryCode
-    $ReservedNumber = $FirstAvailableReservedNumber.PSTNnumber
-    $CountryCodeAndReservedNumber = "$CountryCode" + "$ReservedNumber"
-
-    #XML file containing InterpretedUserType to lookup for actions
-    [xml]$xml = Get-Content ".\InterpretedUserType.xml"
-    $XMLnode = $TeamsCheck.InterpretedUserType
+Function CheckTeamsUserReadiness {
+    $XMLnode = $User.InterpretedUserType
     $XML_Values=$xml.SelectNodes("/InterpretedUser/Type[@id='$XMLnode']")
+    $allChecksPassed = $true
+    $failureMessages = @()
 
-    #Looking up user and determines if user can be enabled based on InterpretedUserType attribute in Teams
-    #If the InterpretedUserType has "Proceed" under Action in the XML.
-    Switch($XML_Values.action)
-    {
-        "Proceed" 
-        {
-            IS-OnPremLineURIManuallySet
-            IS-OnPremLineUriSet
-            IS-LineUriSet
-            IS-RegistrarPoolSet
-            IS-CoexistenceMode
-            
-            If([string]::IsNullOrWhiteSpace($FirstAvailableReservedNumber.ReservedFor))
-
-            {
-                EnableTeamsUser
-            }
-            Else
-            {
-                ReservedNumber
-            }
-                           
-
-        }
-        
-        "Stop" 
-        {
-            Write-host -ForegroundColor Red $XML_Values.Description
-            Write-Host -ForegroundColor Red $XML_Values.Solution
-            Write-Host -ForegroundColor Yellow "Users Teams attributes are:"
-            $TeamsCheck
-        }
-            
-     }
-
-        }
-        else
-        {
-            #Skip user (User is complaint)
-            Write-Host -ForegroundColor Yellow $User.SamAccountName "is Teams compliant"    
-        }
+    # Check OnPremLineURI
+    if([string]::IsNullOrWhiteSpace($User.OnPremLineURI)) {
+        Write-OutPut "OnPremLineURI Check: Passed"
     }
-    Catch
-        {
-            Write-Host -ForegroundColor Red $User.SamAccountName "Something went wrong - User might not found in Teams."
-        }
-    
+    else {
+        $failureMessages += "OnPremLineURI Check: Failed - $($User.OnPremLineURI)"
+        $allChecksPassed = $false
+    }
+    # Check LineURI
+    if([string]::IsNullOrWhiteSpace($User.LineURI)) {
+        Write-OutPut "LineURI Check: Passed"
+    }
+    else {
+        $failureMessages += "LineURI Check: Failed - $($User.LineURI)"
+        $allChecksPassed = $false
+    }
 
-    
+    # Check RegistrarPool
+    if($User.RegistrarPool -ne $null) {
+        Write-OutPut "RegistrarPool Check: Passed"
+    }
+    else {
+        $failureMessages += "RegistrarPool Check: Failed - is not set."
+        $allChecksPassed = $false
+    }
+
+    # Check CoexistenceMode
+    if($User.TeamsUpgradeEffectiveMode -eq 'TeamsOnly' -or $User.TeamsUpgradeEffectiveMode -eq 'Island Mode') {
+        Write-OutPut "Users CoexistenceMode Check: Passed ($($User.TeamsUpgradeEffectiveMode))"
+    }
+    else {
+        $failureMessages += "Users CoexistenceMode Check: Failed - $($User.TeamsUpgradeEffectiveMode)"
+        $allChecksPassed = $false
+    }
+
+    # Check interpreted user type
+    if($XML_Values.action -eq "Proceed") {
+        Write-OutPut "User is ready to be enabled for Teams."
+    }
+    else {
+        $failureMessages += "InterpretedUserType Check: Failed - $($User.InterpretedUserType) + $($XML_Values.Solution)" 
+        $allChecksPassed = $false
+    }
+ 
+    # Final check
+    if($allChecksPassed) {
+        Write-OutPut "User is ready to be enabled for Teams."
+    }
+    else {
+        # Output the failure messages
+        $failureMessages | ForEach-Object { Write-OutPut $_ }
+        Write-OutPut "User is not ready to be enabled for Teams."
+    }
 }
-Stop-Transcript
+
+Function EnableTeamsUser {
+            param (
+                [Parameter(Mandatory=$true)]
+                [string]$UserDepartment,
+                [Parameter(Mandatory=$true)]
+                [object]$User
+            )
+            # Determine if a reserved number is needed based on $UserDepartment
+            $condition = if ($UserDepartment -ne $null) {"ReservedFor='$UserDepartment'"} else {"UsedBy IS NULL and ReservedFor IS NULL"}
+            $Query_Numbers = "SELECT * FROM $DBTableName1 WHERE $condition;"
+        
+            # Get numbers based on condition
+            $Numbers = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_Numbers -Verbose
+            # Select the first available phone number
+            $SelectedNumber = $Numbers | Select-Object -First 1
+        
+            if ($SelectedNumber -ne $null) {
+                $CountryCode = $SelectedNumber.CountryCode
+                $Number = $SelectedNumber.PSTNnumber
+                $CountryCodeAndNumber = "$CountryCode" + "$Number"
+        
+                # Configuring the user in Teams
+                Set-CsPhoneNumberAssignment -Identity $User.UserPrinciplaName -PhoneNumber +$CountryCodeAndNumber -PhoneNumberType DirectRouting -EnterpriseVoiceEnabled $true
+        
+                # Updating the DB
+                $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$($User.MailNickName)' WHERE PSTNNumber=$Number"
+                Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_UpdateNumber -Verbose
+        
+                Write-OutPut $User.MailNickName "Enabled user for PSTN in Teams with number" $Number
+            } else {
+                Write-OutPut "No available numbers found."
+            }
+}
+
+# Check if user is ready for Teams
+CheckTeamsUserReadiness
+
+# Enable user for Teams and update the database
+EnableTeamsUser -UserDepartment $User.Department -User $User
