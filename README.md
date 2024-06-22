@@ -14,10 +14,8 @@ This project aims to ease that pain by having the phone numbers in a database an
 - Create an Azure Automation Account 
 - Create a SQL table using the SQL query - [CreateTables.sql](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/CreateTables.sql) found in this reposistory
 - Create a Service Principal in Entra and assign SQL write permission - [How To](https://www.christianfrohn.dk/2022/04/17/using-azure-service-principal-to-run-powershell-script-on-azure-sql-server-managed-instance/)
-- 
-- Find the "$OUs" variable in the script and then all the OU's in Active Directory you want to process.
-- Create a task schedule for the script "EnableAndAssignPhoneNumber.ps1"
-- Create a task schedule for the script "DB-Maintenance.ps1"
+- Create a Runbook in the Automation with the PowerShell script [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1)
+- Create a Runbook in the Automation with the PowerShell script [EnableAndAssignPhoneNumber.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/EnableAndAssignPhoneNumber.ps1)
 
 ---------------------------------------------------- -------------------------- -------------------------- --------------------------  
 
@@ -43,8 +41,6 @@ The database contains the following data:
 
 
 ### To-do / Bug fixes:
-* Change authentication method against Teams to use a Service Principle insted of a regular user (Currently auth. method with SP is broken)
-* Better error handling
-* Maybe URL to XML file for InterpretedUserType
-* Update Active Directory OfficePhone attribute with assigned phone number
-* Maybe a XML file that contains DB info + auth, AD info + Auth
+
+* Update Active Directory OfficePhone attribute with assigned phone number 
+
