@@ -1,6 +1,6 @@
-# MSTeams-PhoneNumberMgmt 
-# Still work in progress
-A project to manage PSTN phone numbers using PowerShell in combination with a SQL DB and Power BI 
+# Teams PSTN phone number management.
+
+A project created to manage assigment of PSTN numbers in Microsoft Teams (Direct routing)
 
 ## About: 
 
@@ -10,23 +10,20 @@ This project aims to ease that pain by having the phone numbers in a database an
   
 ### Installation / Configuration - Quick and dirty
 
-- Create a Azure SQL manage instance
-- Create a table using the SQL query - CreateTables.sql found in this repo
-- Create a Azure App reg and assig SQL write permission to it using SQL query lauange on the SQL manage instance
-- Then add the app reg information to the PowerShell scripts
+- Create an Azure SQL server and SQL database
+- Create an Azure Automation Account 
+- Create a SQL table using the SQL query - [CreateTables.sql](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/CreateTables.sql) found in this reposistory
+- Create a Service Principal in Entra and assign SQL write permission - [How To](https://www.christianfrohn.dk/2022/04/17/using-azure-service-principal-to-run-powershell-script-on-azure-sql-server-managed-instance/)
+- 
 - Find the "$OUs" variable in the script and then all the OU's in Active Directory you want to process.
 - Create a task schedule for the script "EnableAndAssignPhoneNumber.ps1"
 - Create a task schedule for the script "DB-Maintenance.ps1"
-
-### Installation / Configuration - Detailed
-
-- coming soon
 
 ---------------------------------------------------- -------------------------- -------------------------- --------------------------  
 
 ### PowerShell script - Assign Phone number: 
 
-The PowerShell script will assign the first available phone number (PSTN) it can find in the DB and assign it to the user and then ‘enable’ the user to use PSTN calling in Teams 
+The PowerShell script will assign the first available phone number (PSTN) it can find in the DB and assign it to the user and then enable the user to use PSTN calling in Teams 
 - There is a function for reserved numbers. Currently if it only looks at the department attribute. Say a user is in "IT" department then if a number is reserved for "IT" then the user will get the first available that is reserved for IT. otherwise the user will get the first available number.
  
 
@@ -44,9 +41,6 @@ The database contains the following data:
 * Department 
 * Reserved for 
 
-### Power BI report 
-
-The reports display insight in to how the phone numbers are assigned.
 
 ### To-do / Bug fixes:
 * Change authentication method against Teams to use a Service Principle insted of a regular user (Currently auth. method with SP is broken)

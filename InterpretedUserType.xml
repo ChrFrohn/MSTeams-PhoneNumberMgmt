@@ -107,5 +107,10 @@
       <Action>Stop</Action>
       <description>User is NOT ready for Teams direct routing</description>
       <Solution>Assign a Teams licens to the user (E3 or E5 fx.) - SFB attributes in on-prem AD needs to be checked</Solution>
-   </Type>    
+   </Type>
+   <Type id="PureOnlineTeamsOnlyUserWithNoService">
+      <Action>Stop</Action>
+      <description>User is NOT ready for Teams direct routing</description>
+      <Solution>Pleaceholder</Solution>
+   </Type>       
 </InterpretedUser>
