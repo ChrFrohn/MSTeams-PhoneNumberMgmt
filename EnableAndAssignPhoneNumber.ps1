@@ -4,7 +4,6 @@ $Objectid = ""
 $ClientID = "" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
 $TenantID = "" # "enter the tenant ID of the Service Principal"
 $ClientSecret = "" # "enter the secret associated with the Service Principal"
-
 # SQL Auth.
 $SQLRequestToken = Invoke-RestMethod -Method POST `
            -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
@@ -54,6 +53,11 @@ $DecodedContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromB
 $User = Get-CsOnlineUser -Identity $Objectid | Select-Object UserPrincipalName, OnPremLineURI, LineURI, RegistrarPool, TeamsUpgradeEffectiveMode, InterpretedUserType, MailNickName, Department
 
 Function CheckTeamsUserReadiness {
+    param (
+        [Parameter(Mandatory=$true)]
+        $User
+    )
+
     $XMLnode = $User.InterpretedUserType
     $XML_Values=$xml.SelectNodes("/InterpretedUser/Type[@id='$XMLnode']")
     $allChecksPassed = $true
@@ -96,7 +100,7 @@ Function CheckTeamsUserReadiness {
 
     # Check interpreted user type
     if($XML_Values.action -eq "Proceed") {
-        Write-OutPut "User is ready to be enabled for Teams."
+        Write-OutPut "interpretedUserType Check: Passed - $($User.InterpretedUserType)"
     }
     else {
         $failureMessages += "InterpretedUserType Check: Failed - $($User.InterpretedUserType) + $($XML_Values.Solution)" 
@@ -105,12 +109,12 @@ Function CheckTeamsUserReadiness {
  
     # Final check
     if($allChecksPassed) {
-        Write-OutPut "User is ready to be enabled for Teams."
+        # Return "Proceed" if all checks passed - this will be used to determine if the user is ready to be enabled for Teams
+        return "Proceed"
     }
     else {
-        # Output the failure messages
-        $failureMessages | ForEach-Object { Write-OutPut $_ }
-        Write-OutPut "User is not ready to be enabled for Teams."
+        # Return failure messages if checks did not pass - this will be outputted in the main script
+        return "Error(s)", $failureMessages
     }
 }
 
@@ -148,8 +152,17 @@ Function EnableTeamsUser {
             }
 }
 
-# Check if user is ready for Teams
-CheckTeamsUserReadiness
+# If $ReadinessResult is "Proceed", then the user is ready to be enabled for Teams and assigned a phone number, if "Error(s)" then the user is not ready and the failure messages are outputet
+$ReadinessResult = CheckTeamsUserReadiness -User $User
 
-# Enable user for Teams and update the database
-EnableTeamsUser -UserDepartment $User.Department -User $User
+if ($ReadinessResult -eq "Proceed") 
+{
+    EnableTeamsUser
+} 
+else 
+{
+    # Output failure messages if checks did not pass
+    $ReadinessResult | ForEach-Object { Write-Output $_ }
+}
+   
+
