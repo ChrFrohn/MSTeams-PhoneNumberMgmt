@@ -7,8 +7,13 @@ A project created to manage assigment of PSTN numbers in Microsoft Teams (Direct
 This project is created with a dream to ease the management of phone numbers provided to an organization by an external provider (Telecommunications company's like T-Mobil or TDC). Phone numbers are often provided in an Excel spreadsheet and System administrator in charge needs to assign the number “by hand” and remember to update the spreadsheet. 
 
 This project aims to ease that pain by having the phone numbers in a database and Power BI report to display insight in to how the numbers are used and then a couple of PowerShell scripts to assign phone numbers and then a PowerShell script to “clean up” the database. 
+
+### PowerShell modules in use (needs to be add in the automation account module section):
+
+- Microsoft Teams
+- SQLServer
   
-### Installation / Configuration - Quick and dirty
+### Installation / Configuration - Quick and dirty:
 
 - Create an Azure SQL server and SQL database [How To](https://www.christianfrohn.dk/2022/04/17/how-to-create-a-azure-sql-server-and-a-database/)
 - Create an Azure Automation Account [How to](https://learn.microsoft.com/en-us/azure/automation/quickstarts/create-azure-automation-account-portal#create-automation-account)
@@ -20,14 +25,10 @@ This project aims to ease that pain by having the phone numbers in a database an
 
 Note: You only need to provide the PSTN numbers from your number serie and the country code, you don't need to add how uses it - It can be done automatily by running the [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1)
 
-### PowerShell modules in use (needs to be add in the automation account module section)
+### How to:
 
-- Microsoft Teams
-- SQLServer
-
-### How to use
-
-Start the runbook with PowerShell script [EnableAndAssignPhoneNumber.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/EnableAndAssignPhoneNumber.ps1) in the automation account and type in the users UPN (Username@christianfrohn.dk)
+- Start the runbook with PowerShell script [EnableAndAssignPhoneNumber.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/EnableAndAssignPhoneNumber.ps1) in the automation account and type in the users UPN (Username@christianfrohn.dk)
+- Create a schedule that runs the [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1) when you deem it best (Recommend to run at least once a day)
 
 ---------------------------------------------------- -------------------------- -------------------------- --------------------------  
 
@@ -46,9 +47,8 @@ This is to ensure that the numberserie is always up to date.
 
 This PowerShell script will import the csv file PhoneNumberImportTemplate.csv in to the SQL table that has been created using CreateTables.sql
 
-### Database table struture
+### Database table struture:
 
-The database contains the following data: 
 * PSTNnumber int NOT NULL PRIMARY KEY, 
 * UsedBy varchar(255)
 * ReservedFor varchar(255)
