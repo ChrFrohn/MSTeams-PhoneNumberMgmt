@@ -25,12 +25,17 @@ Note: You only need to provide the PSTN numbers from your number serie and the c
 - Microsoft Teams
 - SQLServer
 
+### How to use
+
+Start the runbook with PowerShell script [EnableAndAssignPhoneNumber.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/EnableAndAssignPhoneNumber.ps1) in the automation account and type in the users UPN (Username@christianfrohn.dk)
+
 ---------------------------------------------------- -------------------------- -------------------------- --------------------------  
 
 ### EnableAndAssignPhoneNumber.ps1: 
 
 The PowerShell script will assign the first available phone number (PSTN) it can find in the DB and assign it to the user and then enable the user to use PSTN calling in Teams 
-- There is a function for reserved numbers. Currently if it only looks at the department attribute. Say a user is in "IT" department then if a number is reserved for "IT" then the user will get the first available that is reserved for IT. otherwise the user will get the first available number.
+
+There is a function for reserved numbers. Currently if it only looks at the department attribute. Say a user is in "IT" department then if a number is reserved for "IT" then the user will get the first available that is reserved for IT. otherwise the user will get the first available number.
 
 ### DB-Maintenance.ps1: 
 
