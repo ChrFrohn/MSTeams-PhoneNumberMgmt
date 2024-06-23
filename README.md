@@ -23,7 +23,7 @@ This project aims to ease that pain by having the phone numbers in a database an
 - Create a Runbook in the Automation with the PowerShell script [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1)
 - Create a Runbook in the Automation with the PowerShell script [EnableAndAssignPhoneNumber.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/EnableAndAssignPhoneNumber.ps1)
 
-Note: You only need to provide the PSTN numbers from your number serie and the country code, you don't need to add how uses it - It can be done automatily by running the [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1)
+Note: You only need to provide the PSTN numbers from your number serie and the country code, you don't need to add the user that is using the number - It can be done automatily by running the [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1)
 
 ### How to:
 
