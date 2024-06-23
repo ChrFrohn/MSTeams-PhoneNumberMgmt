@@ -13,9 +13,16 @@ This project aims to ease that pain by having the phone numbers in a database an
 - Create an Azure SQL server and SQL database
 - Create an Azure Automation Account 
 - Create a SQL table using the SQL query - [CreateTables.sql](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/CreateTables.sql) found in this reposistory
+- Import PSTN numbers from your Telecommunications provider into the SQL table - [ImportTemplate.csv](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/PhoneNumberImportTemplate.csv) using the PowerShell script [ImportPSTNNumbersToDB.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/ImportPSTNNumbersToDB.ps1)
+You only need to provide the PSTN numbers from your number serie and the country code, you don't need to add how uses it - It can be done automatily by running the [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1)
 - Create a Service Principal in Entra and assign SQL write permission - [How To](https://www.christianfrohn.dk/2022/04/17/using-azure-service-principal-to-run-powershell-script-on-azure-sql-server-managed-instance/)
 - Create a Runbook in the Automation with the PowerShell script [DB-Maintenance.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/DB-Maintenance.ps1)
 - Create a Runbook in the Automation with the PowerShell script [EnableAndAssignPhoneNumber.ps1](https://github.com/ChrFrohn/MSTeams-PhoneNumberMgmt/blob/main/EnableAndAssignPhoneNumber.ps1)
+
+### PowerShell modules in use (needs to be add in the automation account)
+
+- Microsoft Teams
+- SQLServer
 
 ---------------------------------------------------- -------------------------- -------------------------- --------------------------  
 
