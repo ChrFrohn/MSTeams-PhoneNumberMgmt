@@ -115,6 +115,7 @@ Function CheckTeamsUserReadiness {
     else {
         # Return failure messages if checks did not pass - this will be outputted in the main script
         return "Error(s)", $failureMessages
+        Exit 1
     }
 }
 
