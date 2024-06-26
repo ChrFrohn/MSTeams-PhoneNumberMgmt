@@ -11,11 +11,6 @@ $ClientID = "" # "enter application id that corresponds to the Service Principal
 $TenantID = "" # "enter the tenant ID of the Service Principal"
 $ClientSecret = ""  # "enter the secret associated with the Service Principal"
 
-# API-driven provisioning Auth
-$APIClientClientID = "" # Client ID of the API-driven provisioning Service principal
-$APIProvoClientSecret = "" # Client Secret of the API-driven provisioning Service principal
-$InboundProvisioningAPIEndpoint = ""
-
 # SQL server info
 $SQLServer = ""
 $DBName = ""
@@ -155,98 +150,9 @@ try {
     throw
 }
 
-# Set Phone number in AD
-try {
-    Set-PhoneNumberInAD -JsonpWorkhoneNumber "+$CountryCodeAndNumber"
-} catch {
-    Write-Error "Failed to set phone number in AD: $_"
-    throw
-}
-
 Write-OutPut $User.UserPrincipalName "Assigned $Number to $TrimUserPrincipalName - Direct routing "
 }
 
-Function Set-PhoneNumberInAD {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$JsonpWorkhoneNumber
-    )
-
-    $JsonContent = 
-@"
-{
-    "schemas": [
-        "urn:ietf:params:scim:api:messages:2.0:BulkRequest"
-    ],
-    "Operations": [
-        {
-            "method": "POST",
-            "bulkId": "897401c2-2de4-4b87-a97f-c02de3bcfc61",
-            "path": "/Users",
-            "data": {
-                "schemas": [
-                    "urn:ietf:params:scim:schemas:core:2.0:User",
-                    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
-                ],
-                "externalId": "$($TrimUserPrincipalName)",
-                "userName": "$($TrimUserPrincipalName)",
-                "active": true,
-                "phoneNumbers": [
-                    {
-                        "value": "$($JsonpWorkhoneNumber)",
-                        "type": "work"
-                    }
-                ]
-            }
-        }
-    ]
-}
-"@
-
-    $JsonPayload = $JsonContent | ConvertTo-Json
-
-    try {
-        # Define the parameters for getting the access token
-        $tokenParams = @{
-            Uri         = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-            Method      = 'POST'
-            Body        = @{
-                client_id     = $APIClientClientID
-                scope         = 'https://graph.microsoft.com/.default'
-                client_secret = $APIProvoClientSecret
-                grant_type    = 'client_credentials'
-            }
-            ContentType = 'application/x-www-form-urlencoded'
-        }
-
-        # Get the access token
-        $accessTokenResponse = Invoke-RestMethod @tokenParams
-    } catch {
-        Write-Error "Failed to get access token: $_"
-        throw
-    }
-
-    try {
-        # Parameters for JSON upload to API-driven provisioning endpoint
-        $bulkUploadParams = @{
-            Uri         = $InboundProvisioningAPIEndpoint
-            Method      = 'POST'
-            Headers     = @{
-                'Authorization' = "Bearer " +  $accessTokenResponse.access_token
-                'Content-Type'  = 'application/scim+json'
-            }
-            Body        = ([System.Text.Encoding]::UTF8.GetBytes($JsonPayload))
-            Verbose     = $true
-        }
-
-        # Send the JSON payload to the API-driven provisioning endpoint
-        $response = Invoke-RestMethod @bulkUploadParams
-        $response
-    } catch {
-        Write-Error "Failed to upload JSON payload: $_"
-        throw
-    }
-}
 
 # If $ReadinessResult is "Proceed", then the user is ready to be enabled for Teams and assigned a phone number, if "Error(s)" then the user is not ready and the failure messages are outputted
 $ReadinessResult = CheckTeamsUserReadiness -User $User
