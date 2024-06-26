@@ -4,8 +4,7 @@ param (
     [object]$ObjectIdOrUPN
 )
 
-$XMLFilePath = "C:\Scripts\" # "enter the path to the XML file containing the InterpretedUserType.xml" 
-$ReservedDepartment = "" 
+$XMLFilePath = "C:\Scripts\InterpretedUserType.xml" # enter the path to the XML file containing the InterpretedUserType.xml
 
 #Auth. using Service Principle with Secret against the SQL DB in Azure and Teams
 $ClientID = "" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
@@ -21,13 +20,6 @@ $InboundProvisioningAPIEndpoint = ""
 $SQLServer = ""
 $DBName = ""
 $DBTableName1 = ""
-
-# SQL Auth.
-$SQLRequestToken = Invoke-RestMethod -Method POST `
-           -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
-           -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
-           -ContentType "application/x-www-form-urlencoded"
-$SQLAccessToken = $SQLRequestToken.access_token
 
 # SQL Auth.
 $SQLRequestToken = Invoke-RestMethod -Method POST `
@@ -55,7 +47,7 @@ $teamsToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantI
 Connect-MicrosoftTeams -AccessTokens @($graphToken, $teamsToken) | Out-Null
 
 #XML file containing InterpretedUserType to lookup for actions
-[xml]$xml = Get-Content "$XMLFilePath\InterpretedUserType.xml"
+[xml]$xml = Get-Content $XMLFilePath
 
 # Get user infomation from Microsoft Teams (since we need the user to be there)
 $User = Get-CsOnlineUser -Identity $ObjectIdOrUPN | Select-Object UserPrincipalName, OnPremLineURI, LineURI, RegistrarPool, TeamsUpgradeEffectiveMode, InterpretedUserType, Department
@@ -132,35 +124,46 @@ Function EnableTeamsUser {
                 [Parameter(Mandatory=$true)]
                 [object]$User
             )
-            # Determine if a reserved number is needed based on $UserDepartment
-            $condition = if ($UserDepartment -contains $ReservedDepartment) {"ReservedFor='$UserDepartment'"} else {"UsedBy IS NULL and ReservedFor IS NULL"}
-            $Query_Numbers = "SELECT * FROM $DBTableName1 WHERE $condition;"
-        
-            # Get numbers based on condition
+            
+            # Get phone numbers
+            $Query_Numbers = "SELECT * FROM $DBTableName1 WHERE UsedBy IS NULL and ReservedFor IS NULL;"
             $Numbers = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_Numbers -Verbose
+
             # Select the first available phone number
             $SelectedNumber = $Numbers | Select-Object -First 1
         
-            Try{ 
+            
                 $CountryCode = $SelectedNumber.CountryCode
                 $Number = $SelectedNumber.PSTNnumber
                 $CountryCodeAndNumber = "$CountryCode" + "$Number"
         
-                # Configuring the user in Teams
-                Set-CsPhoneNumberAssignment -Identity $User -PhoneNumber +$CountryCodeAndNumber -PhoneNumberType DirectRouting 
-        
-                # Updating the DB
-                $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$($TrimUserPrincipalName)' WHERE PSTNNumber=$Number"
-                Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_UpdateNumber -Verbose
+# Configuring the user in Teams
+try {
+    Set-CsPhoneNumberAssignment -Identity $User -PhoneNumber +$CountryCodeAndNumber -PhoneNumberType DirectRouting 
+    Set-CsPhoneNumberAssignment -Identity $User -EnterpriseVoiceEnabled $true
+} catch {
+    Write-Error "Failed to assign phone number in Teams: $_"
+    throw
+}
 
-                # Set Phone number in AD
-                Set-PhoneNumberInAD -JsonpWorkhoneNumber "+$CountryCodeAndNumber"
-        
-                Write-OutPut $User.UserPrincipalName "Enabled $TrimUserPrincipalName for PSTN in Teams with number" $Number
-            } Catch {
-                Write-Error $_
-                throw 
-            }
+# Updating the DB
+try {
+    $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$($TrimUserPrincipalName)' WHERE PSTNNumber=$Number"
+    Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_UpdateNumber -Verbose
+} catch {
+    Write-Error "Failed to update the database: $_"
+    throw
+}
+
+# Set Phone number in AD
+try {
+    Set-PhoneNumberInAD -JsonpWorkhoneNumber "+$CountryCodeAndNumber"
+} catch {
+    Write-Error "Failed to set phone number in AD: $_"
+    throw
+}
+
+Write-OutPut $User.UserPrincipalName "Enabled $TrimUserPrincipalName for PSTN in Teams with number" $Number
 }
 
 Function Set-PhoneNumberInAD {
@@ -169,7 +172,8 @@ Function Set-PhoneNumberInAD {
         [string]$JsonpWorkhoneNumber
     )
 
-    $JsonContent = @"
+    $JsonContent = 
+@"
 {
     "schemas": [
         "urn:ietf:params:scim:api:messages:2.0:BulkRequest"
@@ -199,50 +203,62 @@ Function Set-PhoneNumberInAD {
 }
 "@
 
-$JsonPayload = $JsonContent | ConvertTo-Json
+    $JsonPayload = $JsonContent | ConvertTo-Json
 
-# Define the parameters for getting the access token
-$tokenParams = @{
-    Uri         = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-    Method      = 'POST'
-    Body        = @{
-        client_id     = $APIClientClientID
-        scope         = 'https://graph.microsoft.com/.default'
-        client_secret = $APIProvoClientSecret
-        grant_type    = 'client_credentials'
+    try {
+        # Define the parameters for getting the access token
+        $tokenParams = @{
+            Uri         = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+            Method      = 'POST'
+            Body        = @{
+                client_id     = $APIClientClientID
+                scope         = 'https://graph.microsoft.com/.default'
+                client_secret = $APIProvoClientSecret
+                grant_type    = 'client_credentials'
+            }
+            ContentType = 'application/x-www-form-urlencoded'
+        }
+
+        # Get the access token
+        $accessTokenResponse = Invoke-RestMethod @tokenParams
+    } catch {
+        Write-Error "Failed to get access token: $_"
+        throw
     }
-    ContentType = 'application/x-www-form-urlencoded'
-}
 
-# Get the access token
-$accessTokenResponse = Invoke-RestMethod @tokenParams
+    try {
+        # Parameters for JSON upload to API-driven provisioning endpoint
+        $bulkUploadParams = @{
+            Uri         = $InboundProvisioningAPIEndpoint
+            Method      = 'POST'
+            Headers     = @{
+                'Authorization' = "Bearer " +  $accessTokenResponse.access_token
+                'Content-Type'  = 'application/scim+json'
+            }
+            Body        = ([System.Text.Encoding]::UTF8.GetBytes($JsonPayload))
+            Verbose     = $true
+        }
 
-# Parameters for JSON upload to API-driven provisioning endpoint
-$bulkUploadParams = @{
-    Uri         = $InboundProvisioningAPIEndpoint
-    Method      = 'POST'
-    Headers     = @{
-        'Authorization' = "Bearer " +  $accessTokenResponse.access_token
-        'Content-Type'  = 'application/scim+json'
+        # Send the JSON payload to the API-driven provisioning endpoint
+        $response = Invoke-RestMethod @bulkUploadParams
+        $response
+    } catch {
+        Write-Error "Failed to upload JSON payload: $_"
+        throw
     }
-    Body        = ([System.Text.Encoding]::UTF8.GetBytes($JsonPayload))
-    Verbose     = $true
 }
 
-# Send the JSON payload to the API-driven provisioning endpoint
-$response = Invoke-RestMethod @bulkUploadParams
-$response
-}
-
-# If $ReadinessResult is "Proceed", then the user is ready to be enabled for Teams and assigned a phone number, if "Error(s)" then the user is not ready and the failure messages are outputet
+# If $ReadinessResult is "Proceed", then the user is ready to be enabled for Teams and assigned a phone number, if "Error(s)" then the user is not ready and the failure messages are outputted
 $ReadinessResult = CheckTeamsUserReadiness -User $User
 
-if ($ReadinessResult -eq "Proceed") 
-{
-    EnableTeamsUser -User $User.UserPrincipalName 
-} 
-else 
-{
+if ($ReadinessResult -eq "Proceed") {
+    try {
+        EnableTeamsUser -User $User.UserPrincipalName 
+    } catch {
+        Write-Error "Failed to enable Teams user: $_"
+        throw
+    }
+} else {
     # Output failure messages if checks did not pass
     $ReadinessResult | ForEach-Object { Write-Output $_ }
     throw
