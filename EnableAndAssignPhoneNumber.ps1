@@ -1,9 +1,27 @@
-$Objectid = ""
+# $ObjectId can be the users AAD object ID or email adress (UPN).
+param (
+    [Parameter (Mandatory = $true)]
+    [object]$ObjectIdOrUPN
+)
+
+$XMLFilePath = "C:\Scripts\" # "enter the path to the XML file containing the InterpretedUserType.xml" 
+$ReservedDepartment = "" 
 
 #Auth. using Service Principle with Secret against the SQL DB in Azure and Teams
 $ClientID = "" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
 $TenantID = "" # "enter the tenant ID of the Service Principal"
-$ClientSecret = "" # "enter the secret associated with the Service Principal"
+$ClientSecret = ""  # "enter the secret associated with the Service Principal"
+
+# API-driven provisioning Auth
+$APIClientClientID = "" # Client ID of the API-driven provisioning Service principal
+$APIProvoClientSecret = "" # Client Secret of the API-driven provisioning Service principal
+$InboundProvisioningAPIEndpoint = ""
+
+# SQL server info
+$SQLServer = ""
+$DBName = ""
+$DBTableName1 = ""
+
 # SQL Auth.
 $SQLRequestToken = Invoke-RestMethod -Method POST `
            -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
@@ -11,10 +29,12 @@ $SQLRequestToken = Invoke-RestMethod -Method POST `
            -ContentType "application/x-www-form-urlencoded"
 $SQLAccessToken = $SQLRequestToken.access_token
 
-# SQL server info
-$SQLServer = ""
-$DBName = ""
-$DBTableName1 = ""
+# SQL Auth.
+$SQLRequestToken = Invoke-RestMethod -Method POST `
+           -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
+           -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
+           -ContentType "application/x-www-form-urlencoded"
+$SQLAccessToken = $SQLRequestToken.access_token
 
 # Teams Auth.
 $tokenRequestBody = @{   
@@ -34,23 +54,12 @@ $teamsToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantI
 # Connect to Microsoft Teams
 Connect-MicrosoftTeams -AccessTokens @($graphToken, $teamsToken) | Out-Null
 
-# GitHub Auth
-$RepoOwner = "ChrFrohn" # Your GitHub username
-$Repo = "MSTeams-PhoneNumberMgmt" # The name of the Github repository
-$File_path = "InterpretedUserType.xml" # The path to the file in the repository
-$Url = "https://api.github.com/repos/$RepoOwner/$Repo/contents/$File_path" # GitHub API URL
-
-# Send the API request
-$Response = Invoke-WebRequest -Uri $url 
-$Content = $Response.Content | ConvertFrom-Json
-$DecodedContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($content.content))
-
-
 #XML file containing InterpretedUserType to lookup for actions
-[xml]$XML = $DecodedContent
+[xml]$xml = Get-Content "$XMLFilePath\InterpretedUserType.xml"
 
 # Get user infomation from Microsoft Teams (since we need the user to be there)
-$User = Get-CsOnlineUser -Identity $Objectid | Select-Object UserPrincipalName, OnPremLineURI, LineURI, RegistrarPool, TeamsUpgradeEffectiveMode, InterpretedUserType, MailNickName, Department
+$User = Get-CsOnlineUser -Identity $ObjectIdOrUPN | Select-Object UserPrincipalName, OnPremLineURI, LineURI, RegistrarPool, TeamsUpgradeEffectiveMode, InterpretedUserType, Department
+$TrimUserPrincipalName = $User.UserPrincipalName -replace "@.*$"
 
 Function CheckTeamsUserReadiness {
     param (
@@ -114,20 +123,17 @@ Function CheckTeamsUserReadiness {
     }
     else {
         # Return failure messages if checks did not pass - this will be outputted in the main script
-        return "Error(s)", $failureMessages
-        Exit 1
+        Write-OutPut $failureMessages
     }
 }
 
 Function EnableTeamsUser {
             param (
                 [Parameter(Mandatory=$true)]
-                [string]$UserDepartment,
-                [Parameter(Mandatory=$true)]
                 [object]$User
             )
             # Determine if a reserved number is needed based on $UserDepartment
-            $condition = if ($UserDepartment -ne $null) {"ReservedFor='$UserDepartment'"} else {"UsedBy IS NULL and ReservedFor IS NULL"}
+            $condition = if ($UserDepartment -contains $ReservedDepartment) {"ReservedFor='$UserDepartment'"} else {"UsedBy IS NULL and ReservedFor IS NULL"}
             $Query_Numbers = "SELECT * FROM $DBTableName1 WHERE $condition;"
         
             # Get numbers based on condition
@@ -135,22 +141,97 @@ Function EnableTeamsUser {
             # Select the first available phone number
             $SelectedNumber = $Numbers | Select-Object -First 1
         
-            if ($SelectedNumber -ne $null) {
+            Try{ 
                 $CountryCode = $SelectedNumber.CountryCode
                 $Number = $SelectedNumber.PSTNnumber
                 $CountryCodeAndNumber = "$CountryCode" + "$Number"
         
                 # Configuring the user in Teams
-                Set-CsPhoneNumberAssignment -Identity $User.UserPrinciplaName -PhoneNumber +$CountryCodeAndNumber -PhoneNumberType DirectRouting -EnterpriseVoiceEnabled $true
+                Set-CsPhoneNumberAssignment -Identity $User -PhoneNumber +$CountryCodeAndNumber -PhoneNumberType DirectRouting 
         
                 # Updating the DB
-                $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$($User.MailNickName)' WHERE PSTNNumber=$Number"
+                $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$($TrimUserPrincipalName)' WHERE PSTNNumber=$Number"
                 Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_UpdateNumber -Verbose
+
+                # Set Phone number in AD
+                Set-PhoneNumberInAD -JsonpWorkhoneNumber "+$CountryCodeAndNumber"
         
-                Write-OutPut $User.MailNickName "Enabled user for PSTN in Teams with number" $Number
-            } else {
-                Write-OutPut "No available numbers found."
+                Write-OutPut $User.UserPrincipalName "Enabled $TrimUserPrincipalName for PSTN in Teams with number" $Number
+            } Catch {
+                Write-Error $_
+                throw 
             }
+}
+
+Function Set-PhoneNumberInAD {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$JsonpWorkhoneNumber
+    )
+
+    $JsonContent = @"
+{
+    "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:BulkRequest"
+    ],
+    "Operations": [
+        {
+            "method": "POST",
+            "bulkId": "897401c2-2de4-4b87-a97f-c02de3bcfc61",
+            "path": "/Users",
+            "data": {
+                "schemas": [
+                    "urn:ietf:params:scim:schemas:core:2.0:User",
+                    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+                ],
+                "externalId": "$($TrimUserPrincipalName)",
+                "userName": "$($TrimUserPrincipalName)",
+                "active": true,
+                "phoneNumbers": [
+                    {
+                        "value": "$($JsonpWorkhoneNumber)",
+                        "type": "work"
+                    }
+                ]
+            }
+        }
+    ]
+}
+"@
+
+$JsonPayload = $JsonContent | ConvertTo-Json
+
+# Define the parameters for getting the access token
+$tokenParams = @{
+    Uri         = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+    Method      = 'POST'
+    Body        = @{
+        client_id     = $APIClientClientID
+        scope         = 'https://graph.microsoft.com/.default'
+        client_secret = $APIProvoClientSecret
+        grant_type    = 'client_credentials'
+    }
+    ContentType = 'application/x-www-form-urlencoded'
+}
+
+# Get the access token
+$accessTokenResponse = Invoke-RestMethod @tokenParams
+
+# Parameters for JSON upload to API-driven provisioning endpoint
+$bulkUploadParams = @{
+    Uri         = $InboundProvisioningAPIEndpoint
+    Method      = 'POST'
+    Headers     = @{
+        'Authorization' = "Bearer " +  $accessTokenResponse.access_token
+        'Content-Type'  = 'application/scim+json'
+    }
+    Body        = ([System.Text.Encoding]::UTF8.GetBytes($JsonPayload))
+    Verbose     = $true
+}
+
+# Send the JSON payload to the API-driven provisioning endpoint
+$response = Invoke-RestMethod @bulkUploadParams
+$response
 }
 
 # If $ReadinessResult is "Proceed", then the user is ready to be enabled for Teams and assigned a phone number, if "Error(s)" then the user is not ready and the failure messages are outputet
@@ -158,12 +239,11 @@ $ReadinessResult = CheckTeamsUserReadiness -User $User
 
 if ($ReadinessResult -eq "Proceed") 
 {
-    EnableTeamsUser
+    EnableTeamsUser -User $User.UserPrincipalName 
 } 
 else 
 {
     # Output failure messages if checks did not pass
     $ReadinessResult | ForEach-Object { Write-Output $_ }
+    throw
 }
-   
-
