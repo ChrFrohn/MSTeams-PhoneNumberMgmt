@@ -163,7 +163,7 @@ try {
     throw
 }
 
-Write-OutPut $User.UserPrincipalName "Enabled $TrimUserPrincipalName for PSTN in Teams with number $Number"
+Write-OutPut $User.UserPrincipalName "Assigned $Number to $TrimUserPrincipalName - Direct routing "
 }
 
 Function Set-PhoneNumberInAD {
