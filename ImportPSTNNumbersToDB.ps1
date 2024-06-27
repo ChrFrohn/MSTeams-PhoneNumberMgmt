@@ -1,7 +1,7 @@
 # Path to the CSV file
 $csvFilePath = ".\PhoneNumberImportTemplate.csv"
 
-#Auth. using Service Principle with Secret against the SQL DB in Azure and Teams
+#Auth. using Service Principle with Secret against the SQL DB in Azure
 $ClientID = "" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
 $TenantID = "" # "enter the tenant ID of the Service Principal"
 $ClientSecret = "" # "enter the secret associated with the Service Principal"
@@ -17,10 +17,10 @@ $sqlServer = ""
 $database = "" 
 $tableName = ""
 
-# 
+# Import csv file
 $csvData = Import-Csv -Path $csvFilePath
 
-# 
+# Generate SQL INSERT statements
 $sqlInsertStatements = $csvData | ForEach-Object {
     $pstnNumber = $_.PSTNnumber
     $usedBy = if ($_.UsedBy -eq '') { 'NULL' } else { "'$($_.UsedBy)'" }
