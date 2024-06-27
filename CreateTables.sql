@@ -1,4 +1,4 @@
--- Creates a table to be used to store PSTN information and some user information
+-- Creates a table to be used to store PSTN information and user information
 
 CREATE TABLE PSTNNumbers_DK (
     PSTNnumber int NOT NULL PRIMARY KEY,
