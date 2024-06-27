@@ -7,42 +7,35 @@ $ClientID = "" # "enter application id that corresponds to the Service Principal
 $TenantID = "" # "enter the tenant ID of the Service Principal"
 $ClientSecret = "" # "enter the secret associated with the Service Principal"
 
-$RequestToken = Invoke-RestMethod -Method POST `
-           -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
-           -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
-           -ContentType "application/x-www-form-urlencoded"
-$AccessToken = $RequestToken.access_token
-
 # Azure DB info
 $SQLServer = ""
 $DBName = ""
 $DBTableName1 = ""
        
-#Connect to Teams
-$RequestToken = Invoke-RestMethod -Method POST `
+# SQL Auth.
+$SQLRequestToken = Invoke-RestMethod -Method POST `
            -Uri "https://login.microsoftonline.com/$TenantID/oauth2/token"`
            -Body @{ resource="https://database.windows.net/"; grant_type="client_credentials"; client_id=$ClientID; client_secret=$ClientSecret }`
            -ContentType "application/x-www-form-urlencoded"
-$AccessToken = $RequestToken.access_token
+$SQLAccessToken = $SQLRequestToken.access_token
 
-$graphtokenBody = @{   
+# Teams Auth.
+$tokenRequestBody = @{   
     Grant_Type    = "client_credentials"   
-    Scope         = "https://graph.microsoft.com/.default"   
     Client_Id     = $ClientID 
     Client_Secret = $ClientSecret   
- }  
- 
-$graphToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $graphtokenBody | Select-Object -ExpandProperty Access_Token 
- 
-$teamstokenBody = @{   
-    Grant_Type    = "client_credentials"   
-    Scope         = "48ac35b8-9aa8-4d74-927d-1f4a14a0b239/.default"   
-    Client_Id     = $ClientID  
-    Client_Secret = $ClientSecret 
- } 
- 
-$teamsToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $teamstokenBody | Select-Object -ExpandProperty Access_Token 
-Connect-MicrosoftTeams -AccessTokens @("$graphToken", "$teamsToken")
+}
+
+# Get Graph Token
+$tokenRequestBody.Scope = "https://graph.microsoft.com/.default"
+$graphToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $tokenRequestBody | Select-Object -ExpandProperty Access_Token
+
+# Get Teams Token
+$tokenRequestBody.Scope = "48ac35b8-9aa8-4d74-927d-1f4a14a0b239/.default"
+$teamsToken = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $tokenRequestBody | Select-Object -ExpandProperty Access_Token
+
+# Connect to Microsoft Teams
+Connect-MicrosoftTeams -AccessTokens @($graphToken, $teamsToken) | Out-Null
 
 # Retrieve Teams users and DB users
 $TeamsUsers = Get-CsOnlineUser | Select-Object Alias, LineURI
