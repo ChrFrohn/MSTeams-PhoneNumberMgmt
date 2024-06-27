@@ -4,7 +4,7 @@ param (
     [object]$ObjectIdOrUPN
 )
 
-$XMLFilePath = "C:\Scripts\InterpretedUserType.xml" # enter the path to the XML file containing the InterpretedUserType.xml
+$XMLFilePath = "C:\Scripts\InterpretedUserType.xml" # "enter the path to the XML file containing the InterpretedUserType.xml" 
 
 #Auth. using Service Principle with Secret against the SQL DB in Azure and Teams
 $ClientID = "" # "enter application id that corresponds to the Service Principal" # Do not confuse with its display name
@@ -115,44 +115,45 @@ Function CheckTeamsUserReadiness {
 }
 
 Function EnableTeamsUser {
-            param (
-                [Parameter(Mandatory=$true)]
-                [object]$User
-            )
-            
-            # Get phone numbers
-            $Query_Numbers = "SELECT * FROM $DBTableName1 WHERE UsedBy IS NULL and ReservedFor IS NULL;"
-            $Numbers = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_Numbers -Verbose
-
-            # Select the first available phone number
-            $SelectedNumber = $Numbers | Select-Object -First 1
+    param (
+    [Parameter(Mandatory=$true)]
+    [object]$User
+)
+    # Determine if a reserved number is needed based on $UserDepartment
+    $condition = if ($UserDepartment -contains $ReservedDepartment) {"ReservedFor='$UserDepartment'"} else {"UsedBy IS NULL and ReservedFor IS NULL"}
+    $Query_Numbers = "SELECT * FROM $DBTableName1 WHERE $condition;"
         
-            
-                $CountryCode = $SelectedNumber.CountryCode
-                $Number = $SelectedNumber.PSTNnumber
-                $CountryCodeAndNumber = "$CountryCode" + "$Number"
+    # Get numbers based on condition
+    $Numbers = Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_Numbers -Verbose
+    
+    # Select the first available phone number
+    $SelectedNumber = $Numbers | Select-Object -First 1
+    $CountryCode = $SelectedNumber.CountryCode
+    $Number = $SelectedNumber.PSTNnumber
+    $CountryCodeAndNumber = "$CountryCode" + "$Number"
         
-# Configuring the user in Teams
-try {
-    Set-CsPhoneNumberAssignment -Identity $User -PhoneNumber +$CountryCodeAndNumber -PhoneNumberType DirectRouting 
-    Set-CsPhoneNumberAssignment -Identity $User -EnterpriseVoiceEnabled $true
-} catch {
-    Write-Error "Failed to assign phone number in Teams: $_"
-    throw
-}
+    # Configuring the user in Teams
+    try {
+        Set-CsPhoneNumberAssignment -Identity $User -PhoneNumber +$CountryCodeAndNumber -PhoneNumberType DirectRouting 
+        Set-CsPhoneNumberAssignment -Identity $User -EnterpriseVoiceEnabled $true
+    } 
+    catch {
+        Write-Error "Failed to assign phone number in Teams: $_"
+        throw
+    }
 
 # Updating the DB
-try {
-    $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$($TrimUserPrincipalName)' WHERE PSTNNumber=$Number"
-    Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_UpdateNumber -Verbose
-} catch {
-    Write-Error "Failed to update the database: $_"
-    throw
+    try {
+        $Query_UpdateNumber = "UPDATE $DBTableName1 SET UsedBy='$($TrimUserPrincipalName)' WHERE PSTNNumber=$Number"
+        Invoke-Sqlcmd -ServerInstance $SQLServer -Database $DBName -AccessToken $SQLAccessToken -Query $Query_UpdateNumber -Verbose
+    } 
+    catch {
+        Write-Error "Failed to update the database: $_"
+        throw
 }
-
-Write-OutPut $User.UserPrincipalName "Assigned $Number to $TrimUserPrincipalName - Direct routing "
+    # Output the user and the assigned number
+    Write-OutPut $User.UserPrincipalName "Assigned $Number to $TrimUserPrincipalName - Direct routing "
 }
-
 
 # If $ReadinessResult is "Proceed", then the user is ready to be enabled for Teams and assigned a phone number, if "Error(s)" then the user is not ready and the failure messages are outputted
 $ReadinessResult = CheckTeamsUserReadiness -User $User
@@ -160,7 +161,8 @@ $ReadinessResult = CheckTeamsUserReadiness -User $User
 if ($ReadinessResult -eq "Proceed") {
     try {
         EnableTeamsUser -User $User.UserPrincipalName 
-    } catch {
+    } 
+    catch {
         Write-Error "Failed to enable Teams user: $_"
         throw
     }
